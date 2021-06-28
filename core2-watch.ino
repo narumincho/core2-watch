@@ -1,4 +1,5 @@
 #include <M5Core2.h>
+#include <WiFi.h>
 
 // 今の時刻を取得した後に保存しておく一時変数
 RTC_TimeTypeDef nowTime;
@@ -9,17 +10,34 @@ RTC_DateTypeDef nowDate;
 uint8_t beforeSeconds;
 unsigned long secondsStartMillis;
 char sprintfBuf[64];
-const uint8_t Mode_WiFi = 0;
-const uint8_t Mode_Time = 1;
 
-uint8_t nowMode = Mode_Time;
-uint8_t beforeMode = Mode_Time;
+typedef enum
+{
+  ModeWiFi,
+  Time
+} Mode;
 
+typedef enum
+{
+  Init,
+  Loading,
+  Loaded
+} WiFiState;
+
+// 今のモード
+Mode nowMode = Mode::Time;
+
+// 前のモード
+Mode beforeMode = Mode::ModeWiFi;
+
+// WiFi モード内の状態
+WiFiState wiFiState = WiFiState::Init;
 
 void setup()
 {
   M5.begin();
-  drawMenu();
+  WiFi.mode(WIFI_STA); //STAモード（子機）として使用
+  WiFi.disconnect();   //Wi-Fi切断
 }
 
 void loop()
@@ -30,43 +48,110 @@ void loop()
     beforeMode = nowMode;
     drawMenu();
   }
-  if (nowMode == Mode_WiFi)
+  if (nowMode == Mode::ModeWiFi)
   {
-    M5.Lcd.setCursor(0, 116);
-    M5.Lcd.setTextSize(2);
-    M5.Lcd.print("Now WiFi Mode.");
+    updateInWifiMode();
   }
-  if (nowMode == Mode_Time)
+  if (nowMode == Mode::Time)
   {
-    M5.Rtc.GetDate(&nowDate);
-    M5.Rtc.GetTime(&nowTime);
-
-    if (beforeSeconds != nowTime.Seconds)
-    {
-      secondsStartMillis = millis();
-      beforeSeconds = nowTime.Seconds;
-    }
-
-    drawDateTime(nowDate.Year,
-                 nowDate.Month,
-                 nowDate.Date,
-                 nowTime.Hours,
-                 nowTime.Minutes,
-                 nowTime.Seconds,
-                 millis() - secondsStartMillis);
+    updateInTimeMode();
   }
+
+  // モード切り替え
   TouchPoint_t pos = M5.Touch.getPressPoint();
   if (220 < pos.y)
   {
     if (0 < pos.x && pos.x < 106)
     {
-      nowMode = Mode_WiFi;
+      nowMode = Mode::ModeWiFi;
     }
     else if (pos.x < 214)
     {
-      nowMode = Mode_Time;
+      nowMode = Mode::Time;
     }
   }
+}
+
+// WiFi モードの処理
+void updateInWifiMode()
+{
+  M5.Lcd.setTextSize(1);
+  if (wiFiState == WiFiState::Init)
+  {
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.println("laoding");
+    WiFi.scanNetworks(true);
+    wiFiState = WiFiState::Loading;
+    return;
+  }
+  if (wiFiState == WiFiState::Loading)
+  {
+    int16_t result = WiFi.scanComplete();
+    if (result == -2)
+    {
+      M5.Lcd.fillRect(0, 0, 320, 200, BLACK);
+      M5.Lcd.setCursor(0, 0);
+      M5.Lcd.setTextSize(1);
+      M5.Lcd.println("faild");
+      wiFiState = WiFiState::Loaded;
+      return;
+    }
+    if (result == -1)
+    {
+      M5.Lcd.setTextSize(1);
+      M5.Lcd.print(".");
+      return;
+    }
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.fillRect(0, 0, 320, 200, BLACK);
+    if (result == 0)
+    {
+      //ネットワークが見つからないとき
+      M5.Lcd.println("no networks found");
+      wiFiState = WiFiState::Loaded;
+      return;
+    }
+    wiFiState = WiFiState::Loaded;
+    //ネットワークが見つかったとき
+    M5.Lcd.print(String(result) + "!");
+    for (int i = 0; i < result; i++)
+    {
+      M5.Lcd.print(i + 1);
+      M5.Lcd.print(": ");
+      M5.Lcd.print(WiFi.SSID(i)); //SSID(アクセスポイントの識別名)を表示
+      M5.Lcd.print(":");
+      M5.Lcd.print(WiFi.channel(i)); //チャンネルを表示
+      M5.Lcd.print("CH (");
+      M5.Lcd.print(WiFi.RSSI(i)); //RSSI(受信信号の強度)を表示
+      M5.Lcd.print(")");
+      M5.Lcd.print(String(WiFi.encryptionType(i))); //暗号化の種類がOPENか否か
+      M5.Lcd.print("  ");
+
+      M5.Lcd.println("");
+    }
+  }
+}
+
+// 時刻モードの処理
+void updateInTimeMode()
+{
+  M5.Rtc.GetDate(&nowDate);
+  M5.Rtc.GetTime(&nowTime);
+
+  if (beforeSeconds != nowTime.Seconds)
+  {
+    secondsStartMillis = millis();
+    beforeSeconds = nowTime.Seconds;
+  }
+
+  drawDateTime(nowDate.Year,
+               nowDate.Month,
+               nowDate.Date,
+               nowTime.Hours,
+               nowTime.Minutes,
+               nowTime.Seconds,
+               millis() - secondsStartMillis);
 }
 
 // 時刻を表示する
@@ -114,10 +199,13 @@ void drawMenu()
   // WiFi
   M5.Lcd.setCursor(28, 222);
   M5.Lcd.setTextSize(2);
-  if(nowMode == Mode_WiFi) {
+  if (nowMode == Mode::ModeWiFi)
+  {
     M5.Lcd.setTextColor(BLACK);
     M5.Lcd.fillRect(0, 221, 105, 20, ORANGE);
-  } else {
+  }
+  else
+  {
     M5.Lcd.setTextColor(WHITE);
   }
   M5.Lcd.print("WiFi");
@@ -125,10 +213,13 @@ void drawMenu()
   // Time
   M5.Lcd.setCursor(134, 222);
   M5.Lcd.setTextSize(2);
-  if(nowMode == Mode_Time) {
+  if (nowMode == Mode::Time)
+  {
     M5.Lcd.setTextColor(BLACK);
     M5.Lcd.fillRect(107, 221, 104, 20, ORANGE);
-  } else {
+  }
+  else
+  {
     M5.Lcd.setTextColor(WHITE);
   }
   M5.Lcd.print("Time");
