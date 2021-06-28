@@ -2,8 +2,9 @@
 
 RTC_TimeTypeDef nowTime;
 RTC_DateTypeDef nowDate;
-
-char timeStrbuff[64];
+uint8_t beforeSeconds;
+unsigned long secondsStartMillis;
+char sprintfBuf[64];
 
 void setup()
 {
@@ -15,20 +16,43 @@ void loop()
   M5.Rtc.GetDate(&nowDate);
   M5.Rtc.GetTime(&nowTime);
 
-  DisplayDateTime(nowDate.Year, nowDate.Month, nowDate.Date, nowTime.Hours, nowTime.Minutes, nowTime.Seconds);
-  delay(16);
+  if (beforeSeconds != nowTime.Seconds)
+  {
+    secondsStartMillis = millis();
+    beforeSeconds = nowTime.Seconds;
+  }
+
+  DisplayDateTime(nowDate.Year,
+                  nowDate.Month,
+                  nowDate.Date,
+                  nowTime.Hours,
+                  nowTime.Minutes,
+                  nowTime.Seconds,
+                  millis() - secondsStartMillis);
 }
 
-void DisplayDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hours, uint8_t minutes, uint8_t seconds)
+void DisplayDateTime(uint16_t year,
+                     uint8_t month,
+                     uint8_t day,
+                     uint8_t hours,
+                     uint8_t minutes,
+                     uint8_t seconds,
+                     unsigned long milliSeconds)
 {
   M5.Lcd.setCursor(20, 20);
   M5.Lcd.setTextSize(2);
-  M5.Lcd.print(String(year));
+  sprintf(sprintfBuf, "%04d", year);
+  M5.Lcd.print(sprintfBuf);
   M5.Lcd.setTextSize(3);
-  M5.Lcd.print("-" + String(month) + "-" + String(day));
+  sprintf(sprintfBuf, "-%02d-%02d", month, day);
+  M5.Lcd.print(sprintfBuf);
+
   M5.Lcd.setCursor(20, 60);
   M5.Lcd.setTextSize(4);
-  M5.Lcd.print(String(hours) + ":" + String(minutes));
+  sprintf(sprintfBuf, "%02d:%02d", hours, minutes);
+  M5.Lcd.print(sprintfBuf);
   M5.Lcd.setTextSize(2);
-  M5.Lcd.print(":" + String(seconds));
+
+  sprintf(sprintfBuf, ":%02d'%03d", seconds, milliSeconds);
+  M5.Lcd.print(sprintfBuf);
 }
