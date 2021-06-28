@@ -2,6 +2,7 @@
     "files.associations": {
         "*.ts": "typescript",
         "list": "cpp",
-        "chrono": "cpp"
+        "chrono": "cpp",
+        "functional": "cpp"
     }
 }
