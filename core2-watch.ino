@@ -11,24 +11,25 @@ uint8_t beforeSeconds;
 unsigned long secondsStartMillis;
 char sprintfBuf[64];
 
-typedef enum
+enum class Mode
 {
-  ModeWiFi,
-  Time
-} Mode;
+  WiFi,
+  Time,
+  Data
+};
 
-typedef enum
+enum class WiFiState
 {
   Init,
   Loading,
   Loaded
-} WiFiState;
+};
 
 // 今のモード
 Mode nowMode = Mode::Time;
 
 // 前のモード
-Mode beforeMode = Mode::ModeWiFi;
+Mode beforeMode = Mode::WiFi;
 
 // WiFi モード内の状態
 WiFiState wiFiState = WiFiState::Init;
@@ -36,6 +37,7 @@ WiFiState wiFiState = WiFiState::Init;
 void setup()
 {
   M5.begin();
+  M5.IMU.Init();
   WiFi.mode(WIFI_STA); //STAモード（子機）として使用
   WiFi.disconnect();   //Wi-Fi切断
 }
@@ -47,14 +49,22 @@ void loop()
     M5.Lcd.fillScreen(BLACK);
     beforeMode = nowMode;
     drawMenu();
+    if (nowMode == Mode::WiFi)
+    {
+      wiFiState = WiFiState::Init;
+    }
   }
-  if (nowMode == Mode::ModeWiFi)
+  if (nowMode == Mode::WiFi)
   {
     updateInWifiMode();
   }
   if (nowMode == Mode::Time)
   {
     updateInTimeMode();
+  }
+  if (nowMode == Mode::Data)
+  {
+    updateInDataMode();
   }
 
   // モード切り替え
@@ -63,19 +73,22 @@ void loop()
   {
     if (0 < pos.x && pos.x < 106)
     {
-      nowMode = Mode::ModeWiFi;
+      nowMode = Mode::WiFi;
+      return;
     }
-    else if (pos.x < 214)
+    if (pos.x < 214)
     {
       nowMode = Mode::Time;
+      return;
     }
+    nowMode = Mode::Data;
   }
 }
 
 // WiFi モードの処理
 void updateInWifiMode()
 {
-  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextSize(2);
   if (wiFiState == WiFiState::Init)
   {
     M5.Lcd.setCursor(0, 0);
@@ -98,8 +111,6 @@ void updateInWifiMode()
     }
     if (result == -1)
     {
-      M5.Lcd.setTextSize(1);
-      M5.Lcd.print(".");
       return;
     }
     M5.Lcd.setCursor(0, 0);
@@ -188,21 +199,32 @@ void drawDateTime(uint16_t year,
   M5.Lcd.print(sprintfBuf);
 }
 
+// データモードでの処理
+void updateInDataMode()
+{
+  M5.Lcd.setCursor(180, 116);
+  M5.Lcd.setTextSize(2);
+  float temperature = 0.0f;
+  M5.IMU.getTempData(&temperature);
+  sprintf(sprintfBuf, "%03.3f ^c", temperature);
+  M5.Lcd.print(sprintfBuf);
+}
+
 // 下のモード切り替えボタンを表示する
 void drawMenu()
 {
   M5.Lcd.fillRect(0, 320, 221, 19, BLACK);
   M5.Lcd.drawFastHLine(0, 220, 319, WHITE);
-  M5.Lcd.drawFastVLine(106, 220, 18, WHITE);
-  M5.Lcd.drawFastVLine(214, 220, 18, WHITE);
+  M5.Lcd.drawFastVLine(106, 220, 19, WHITE);
+  M5.Lcd.drawFastVLine(214, 220, 19, WHITE);
 
   // WiFi
   M5.Lcd.setCursor(28, 222);
   M5.Lcd.setTextSize(2);
-  if (nowMode == Mode::ModeWiFi)
+  if (nowMode == Mode::WiFi)
   {
     M5.Lcd.setTextColor(BLACK);
-    M5.Lcd.fillRect(0, 221, 105, 20, ORANGE);
+    M5.Lcd.fillRect(0, 221, 106, 20, ORANGE);
   }
   else
   {
@@ -216,12 +238,27 @@ void drawMenu()
   if (nowMode == Mode::Time)
   {
     M5.Lcd.setTextColor(BLACK);
-    M5.Lcd.fillRect(107, 221, 104, 20, ORANGE);
+    M5.Lcd.fillRect(107, 221, 106, 20, ORANGE);
   }
   else
   {
     M5.Lcd.setTextColor(WHITE);
   }
   M5.Lcd.print("Time");
+  M5.Lcd.setTextColor(WHITE, BLACK);
+
+  // Data
+  M5.Lcd.setCursor(240, 222);
+  M5.Lcd.setTextSize(2);
+  if (nowMode == Mode::Data)
+  {
+    M5.Lcd.setTextColor(BLACK);
+    M5.Lcd.fillRect(213, 221, 106, 20, ORANGE);
+  }
+  else
+  {
+    M5.Lcd.setTextColor(WHITE);
+  }
+  M5.Lcd.print("Data");
   M5.Lcd.setTextColor(WHITE, BLACK);
 }
