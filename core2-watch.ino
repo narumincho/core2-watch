@@ -8,9 +8,19 @@ RTC_DateTypeDef nowDate;
 
 // 前の秒. 秒がいつ変化するか調べる必要があるため
 uint8_t beforeSeconds;
+// 今回の秒が始まったミリ秒
 unsigned long secondsStartMillis;
+// 表示用のバッファ
 char sprintfBuf[64];
+// WiFi の SSID
+const String ssid = "n";
+// WiFi の パスワード
+const String wifiPassword = "testpass";
 
+// NTP サーバーから取得した時刻
+tm ntpTime;
+
+// モード
 enum class Mode
 {
   WiFi,
@@ -18,11 +28,13 @@ enum class Mode
   Data
 };
 
+// WiFi 内でのモード
 enum class WiFiState
 {
   Init,
-  Loading,
-  Loaded
+  Connecting,
+  Connected,
+  Fail
 };
 
 // 今のモード
@@ -34,14 +46,19 @@ Mode beforeMode = Mode::WiFi;
 // WiFi モード内の状態
 WiFiState wiFiState = WiFiState::Init;
 
+/* ==========================
+            setup
+============================ */
 void setup()
 {
   M5.begin();
   M5.IMU.Init();
   WiFi.mode(WIFI_STA); //STAモード（子機）として使用
-  WiFi.disconnect();   //Wi-Fi切断
 }
 
+/* ==========================
+            loop
+============================ */
 void loop()
 {
   if (beforeMode != nowMode)
@@ -92,55 +109,50 @@ void updateInWifiMode()
   if (wiFiState == WiFiState::Init)
   {
     M5.Lcd.setCursor(0, 0);
-    M5.Lcd.println("laoding");
-    WiFi.scanNetworks(true);
-    wiFiState = WiFiState::Loading;
+    M5.Lcd.println("loading");
+    M5.Lcd.println(ssid.c_str());
+    M5.Lcd.println(wifiPassword.c_str());
+
+    WiFi.begin(ssid.c_str(), wifiPassword.c_str());
+    wiFiState = WiFiState::Connecting;
     return;
   }
-  if (wiFiState == WiFiState::Loading)
+  if (wiFiState == WiFiState::Connecting)
   {
-    int16_t result = WiFi.scanComplete();
-    if (result == -2)
+    wl_status_t status = WiFi.status();
+    if (status == wl_status_t::WL_CONNECT_FAILED)
     {
       M5.Lcd.fillRect(0, 0, 320, 200, BLACK);
       M5.Lcd.setCursor(0, 0);
-      M5.Lcd.setTextSize(1);
+      M5.Lcd.setTextSize(2);
       M5.Lcd.println("faild");
-      wiFiState = WiFiState::Loaded;
+      wiFiState = WiFiState::Fail;
       return;
     }
-    if (result == -1)
+    if (status == wl_status_t::WL_CONNECTED)
     {
-      return;
-    }
-    M5.Lcd.setCursor(0, 0);
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.fillRect(0, 0, 320, 200, BLACK);
-    if (result == 0)
-    {
-      //ネットワークが見つからないとき
-      M5.Lcd.println("no networks found");
-      wiFiState = WiFiState::Loaded;
-      return;
-    }
-    wiFiState = WiFiState::Loaded;
-    //ネットワークが見つかったとき
-    M5.Lcd.print(String(result) + "!");
-    for (int i = 0; i < result; i++)
-    {
-      M5.Lcd.print(i + 1);
-      M5.Lcd.print(": ");
-      M5.Lcd.print(WiFi.SSID(i)); //SSID(アクセスポイントの識別名)を表示
-      M5.Lcd.print(":");
-      M5.Lcd.print(WiFi.channel(i)); //チャンネルを表示
-      M5.Lcd.print("CH (");
-      M5.Lcd.print(WiFi.RSSI(i)); //RSSI(受信信号の強度)を表示
-      M5.Lcd.print(")");
-      M5.Lcd.print(String(WiFi.encryptionType(i))); //暗号化の種類がOPENか否か
-      M5.Lcd.print("  ");
+      configTime(60 * 60 * 9, 0, "ntp.nict.jp", "time.google.com", "ntp.jst.mfeed.ad.jp");
+      M5.Lcd.setCursor(0, 0);
+      M5.Lcd.setTextSize(2);
+      M5.Lcd.fillRect(0, 0, 320, 200, BLACK);
+      M5.Lcd.println("ok");
 
-      M5.Lcd.println("");
+      if (getLocalTime(&ntpTime))
+      {
+        M5.Lcd.println("time ok");
+        sprintf(sprintfBuf, "%04d-%04d-%04d %02d:%02d:%02d", ntpTime.tm_year, ntpTime.tm_mon, ntpTime.tm_mday, ntpTime.tm_hour, ntpTime.tm_min, ntpTime.tm_sec);
+        M5.Lcd.println(sprintfBuf);
+      }
+      else
+      {
+        M5.Lcd.println("time error");
+      }
+      wiFiState = WiFiState::Connected;
+      return;
     }
+    M5.Lcd.setCursor(0, 16 * 4);
+    sprintf(sprintfBuf, "status: %02d", wifiPassword);
+    M5.Lcd.print(sprintfBuf);
   }
 }
 
