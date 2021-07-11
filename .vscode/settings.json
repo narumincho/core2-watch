@@ -1,8 +1,9 @@
 {
-    "files.associations": {
-        "*.ts": "typescript",
-        "list": "cpp",
-        "chrono": "cpp",
-        "functional": "cpp"
-    }
+  "files.associations": {
+    "*.ts": "typescript",
+    "list": "cpp",
+    "chrono": "cpp",
+    "functional": "cpp",
+    "string": "cpp"
+  }
 }
