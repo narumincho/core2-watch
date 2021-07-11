@@ -250,12 +250,23 @@ void drawDateTime(uint16_t year,
 ================================= */
 void updateInDataMode()
 {
-  M5.Lcd.setCursor(180, 116);
-  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(0, 116);
+  M5.Lcd.setTextSize(1);
   float temperature = 0.0f;
   M5.IMU.getTempData(&temperature);
-  sprintf(sprintfBuf, "%03.3f ^c", temperature);
-  M5.Lcd.print(sprintfBuf);
+  sprintf(sprintfBuf, "IMU temperature: %03.3f degree Celsius", temperature);
+  M5.Lcd.println(sprintfBuf);
+
+  float pitch = 0.0f;
+  float roll = 0.0f;
+  float yaw = 0.0f;
+  M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+  sprintf(sprintfBuf, "pitch: %03.3f, roll: %03.3f, yaw: %03.3f", pitch, roll, yaw);
+  M5.Lcd.println(sprintfBuf);
+
+  sprintf(sprintfBuf, "voltabe: %03.3f", pitch, roll, M5.Axp.GetBatVoltage());
+
+  M5.Axp.SetLed(0 < pitch);
 }
 
 // 下のモード切り替えボタンを表示する
