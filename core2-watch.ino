@@ -1,11 +1,6 @@
 #include <M5Core2.h>
 #include <WiFi.h>
 
-// 今の時刻を取得した後に保存しておく一時変数
-RTC_TimeTypeDef nowTime;
-// 今の日付を取得した後に保存しておく一時変数
-RTC_DateTypeDef nowDate;
-
 // 前の秒. 秒がいつ変化するか調べる必要があるため
 uint8_t beforeSeconds;
 // 今回の秒が始まったミリ秒
@@ -16,9 +11,6 @@ char sprintfBuf[64];
 const String ssid = "n";
 // WiFi の パスワード
 const String wifiPassword = "testpass";
-
-// NTP サーバーから取得した時刻
-tm ntpTime;
 
 // モード
 enum class Mode
@@ -136,12 +128,26 @@ void updateInWifiMode()
       M5.Lcd.setTextSize(2);
       M5.Lcd.fillRect(0, 0, 320, 200, BLACK);
       M5.Lcd.println("ok");
+      // NTP サーバーから取得した時刻
+      tm ntpDateTime;
 
-      if (getLocalTime(&ntpTime))
+      if (getLocalTime(&ntpDateTime))
       {
         M5.Lcd.println("time ok");
-        sprintf(sprintfBuf, "%04d-%04d-%04d %02d:%02d:%02d", ntpTime.tm_year, ntpTime.tm_mon, ntpTime.tm_mday, ntpTime.tm_hour, ntpTime.tm_min, ntpTime.tm_sec);
+        sprintf(sprintfBuf, "%04d-%02d-%02d %02d:%02d:%02d", ntpDateTime.tm_year, ntpDateTime.tm_mon, ntpDateTime.tm_mday, ntpDateTime.tm_hour, ntpDateTime.tm_min, ntpDateTime.tm_sec);
         M5.Lcd.println(sprintfBuf);
+
+        RTC_DateTypeDef ntpDate;
+        ntpDate.Year = ntpDateTime.tm_year + 1900;
+        ntpDate.Month = ntpDateTime.tm_mon + 1;
+        ntpDate.Date = ntpDateTime.tm_mday;
+        M5.Rtc.SetDate(&ntpDate);
+
+        RTC_TimeTypeDef ntpTime;
+        ntpTime.Minutes = ntpDateTime.tm_min;
+        ntpTime.Seconds = ntpDateTime.tm_sec;
+        ntpTime.Hours = ntpDateTime.tm_hour;
+        M5.Rtc.SetTime(&ntpTime);
       }
       else
       {
@@ -159,6 +165,9 @@ void updateInWifiMode()
 // 時刻モードの処理
 void updateInTimeMode()
 {
+  RTC_DateTypeDef nowDate;
+  RTC_TimeTypeDef nowTime;
+
   M5.Rtc.GetDate(&nowDate);
   M5.Rtc.GetTime(&nowTime);
 
