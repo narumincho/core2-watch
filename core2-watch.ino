@@ -38,9 +38,9 @@ Mode beforeMode = Mode::WiFi;
 // WiFi モード内の状態
 WiFiState wiFiState = WiFiState::Init;
 
-/* ==========================
-            setup
-============================ */
+/* ================================
+               setup
+================================= */
 void setup()
 {
   M5.begin();
@@ -48,9 +48,9 @@ void setup()
   WiFi.mode(WIFI_STA); //STAモード（子機）として使用
 }
 
-/* ==========================
-            loop
-============================ */
+/* ================================
+               loop
+================================= */
 void loop()
 {
   if (beforeMode != nowMode)
@@ -94,7 +94,9 @@ void loop()
   }
 }
 
-// WiFi モードの処理
+/* ================================
+            WiFi Mode
+================================= */
 void updateInWifiMode()
 {
   M5.Lcd.setTextSize(2);
@@ -133,21 +135,17 @@ void updateInWifiMode()
 
       if (getLocalTime(&ntpDateTime))
       {
-        M5.Lcd.println("time ok");
-        sprintf(sprintfBuf, "%04d-%02d-%02d %02d:%02d:%02d", ntpDateTime.tm_year, ntpDateTime.tm_mon, ntpDateTime.tm_mday, ntpDateTime.tm_hour, ntpDateTime.tm_min, ntpDateTime.tm_sec);
+        M5.Lcd.println("set time from NTP");
+        sprintf(sprintfBuf, "raw: %04d-%02d-%02d %02d:%02d:%02d", ntpDateTime.tm_year, ntpDateTime.tm_mon, ntpDateTime.tm_mday, ntpDateTime.tm_hour, ntpDateTime.tm_min, ntpDateTime.tm_sec);
         M5.Lcd.println(sprintfBuf);
 
-        RTC_DateTypeDef ntpDate;
-        ntpDate.Year = ntpDateTime.tm_year + 1900;
-        ntpDate.Month = ntpDateTime.tm_mon + 1;
-        ntpDate.Date = ntpDateTime.tm_mday;
-        M5.Rtc.SetDate(&ntpDate);
-
-        RTC_TimeTypeDef ntpTime;
-        ntpTime.Minutes = ntpDateTime.tm_min;
-        ntpTime.Seconds = ntpDateTime.tm_sec;
-        ntpTime.Hours = ntpDateTime.tm_hour;
-        M5.Rtc.SetTime(&ntpTime);
+        setRtcDateTime(
+            ntpDateTime.tm_year + 1900,
+            ntpDateTime.tm_mon + 1,
+            ntpDateTime.tm_mday,
+            ntpDateTime.tm_hour,
+            ntpDateTime.tm_min,
+            ntpDateTime.tm_sec);
       }
       else
       {
@@ -157,12 +155,14 @@ void updateInWifiMode()
       return;
     }
     M5.Lcd.setCursor(0, 16 * 4);
-    sprintf(sprintfBuf, "status: %02d", wifiPassword);
+    sprintf(sprintfBuf, "status: %02d", status);
     M5.Lcd.print(sprintfBuf);
   }
 }
 
-// 時刻モードの処理
+/* ================================
+              Time Mode
+================================= */
 void updateInTimeMode()
 {
   RTC_DateTypeDef nowDate;
@@ -186,7 +186,32 @@ void updateInTimeMode()
                millis() - secondsStartMillis);
 }
 
-// 時刻を表示する
+/* ---------------------------------
+  リアルタイムクロック に 時刻 を設定する
+--------------------------------- */
+void setRtcDateTime(uint16_t year,
+                    uint8_t month,
+                    uint8_t day,
+                    uint8_t hours,
+                    uint8_t minutes,
+                    uint8_t seconds)
+{
+  RTC_DateTypeDef ntpDate;
+  ntpDate.Year = year;
+  ntpDate.Month = month;
+  ntpDate.Date = day;
+  M5.Rtc.SetDate(&ntpDate);
+
+  RTC_TimeTypeDef ntpTime;
+  ntpTime.Hours = hours;
+  ntpTime.Minutes = minutes;
+  ntpTime.Seconds = seconds;
+  M5.Rtc.SetTime(&ntpTime);
+}
+
+/* ---------------------------------
+            時刻を表示する
+--------------------------------- */
 void drawDateTime(uint16_t year,
                   uint8_t month,
                   uint8_t day,
@@ -202,25 +227,27 @@ void drawDateTime(uint16_t year,
   M5.Lcd.print(sprintfBuf);
 
   // month, day
-  M5.Lcd.setCursor(108, 20);
+  M5.Lcd.setCursor(108, 30);
   M5.Lcd.setTextSize(3);
   sprintf(sprintfBuf, "%02d-%02d", month, day);
   M5.Lcd.print(sprintfBuf);
 
   // hours, minutes
   M5.Lcd.setCursor(20, 100);
-  M5.Lcd.setTextSize(4);
+  M5.Lcd.setTextSize(5);
   sprintf(sprintfBuf, "%02d:%02d", hours, minutes);
   M5.Lcd.print(sprintfBuf);
 
   // seconds, milliSeconds
-  M5.Lcd.setCursor(180, 116);
+  M5.Lcd.setCursor(190, 116);
   M5.Lcd.setTextSize(2);
   sprintf(sprintfBuf, ":%02d'%03d", seconds, milliSeconds);
   M5.Lcd.print(sprintfBuf);
 }
 
-// データモードでの処理
+/* ================================
+              Data Mode
+================================= */
 void updateInDataMode()
 {
   M5.Lcd.setCursor(180, 116);
