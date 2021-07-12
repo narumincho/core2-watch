@@ -11,10 +11,8 @@ namespace core2watch
   uint8_t beforeSeconds;
   // 今回の秒が始まったミリ秒
   unsigned long secondsStartMillis;
-  // 表示用のバッファ
-  char sprintfBuf[64];
   // WiFi の SSID
-  const String ssid = "n";
+  const String wifiSsid = "n";
   // WiFi の パスワード
   const String wifiPassword = "testpass";
 
@@ -162,26 +160,22 @@ namespace core2watch
     // year
     M5.Lcd.setCursor(20, 36);
     M5.Lcd.setTextSize(2);
-    sprintf(sprintfBuf, "%04d-", year);
-    M5.Lcd.print(sprintfBuf);
+    M5.Lcd.printf("%04d-", year);
 
     // month, day
     M5.Lcd.setCursor(108, 30);
     M5.Lcd.setTextSize(3);
-    sprintf(sprintfBuf, "%02d-%02d", month, day);
-    M5.Lcd.print(sprintfBuf);
+    M5.Lcd.printf("%02d-%02d", month, day);
 
     // hours, minutes
     M5.Lcd.setCursor(20, 100);
     M5.Lcd.setTextSize(5);
-    sprintf(sprintfBuf, "%02d:%02d", hours, minutes);
-    M5.Lcd.print(sprintfBuf);
+    M5.Lcd.printf("%02d:%02d", hours, minutes);
 
     // seconds, milliSeconds
     M5.Lcd.setCursor(190, 116);
     M5.Lcd.setTextSize(2);
-    sprintf(sprintfBuf, ":%02d'%03ld", seconds, milliSeconds);
-    M5.Lcd.print(sprintfBuf);
+    M5.Lcd.printf(":%02d'%03ld", seconds, milliSeconds);
   }
 
   /* ================================
@@ -193,11 +187,9 @@ namespace core2watch
     if (wiFiState == WiFiState::Init)
     {
       M5.Lcd.setCursor(0, 0);
-      M5.Lcd.println("loading");
-      M5.Lcd.println(ssid.c_str());
-      M5.Lcd.println(wifiPassword.c_str());
+      M5.Lcd.printf("conneting %s\n", wifiSsid.c_str());
 
-      WiFi.begin(ssid.c_str(), wifiPassword.c_str());
+      WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
       wiFiState = WiFiState::Connecting;
       return;
     }
@@ -226,8 +218,7 @@ namespace core2watch
         if (getLocalTime(&ntpDateTime))
         {
           M5.Lcd.println("set time from NTP");
-          sprintf(sprintfBuf, "raw: %04d-%02d-%02d %02d:%02d:%02d", ntpDateTime.tm_year, ntpDateTime.tm_mon, ntpDateTime.tm_mday, ntpDateTime.tm_hour, ntpDateTime.tm_min, ntpDateTime.tm_sec);
-          M5.Lcd.println(sprintfBuf);
+          M5.Lcd.printf("raw: %04d-%02d-%02d %02d:%02d:%02d\n", ntpDateTime.tm_year, ntpDateTime.tm_mon, ntpDateTime.tm_mday, ntpDateTime.tm_hour, ntpDateTime.tm_min, ntpDateTime.tm_sec);
 
           setRtcDateTime(
               ntpDateTime.tm_year + 1900,
@@ -245,8 +236,7 @@ namespace core2watch
         return;
       }
       M5.Lcd.setCursor(0, 16 * 4);
-      sprintf(sprintfBuf, "status: %02d", status);
-      M5.Lcd.print(sprintfBuf);
+      M5.Lcd.printf("status: %02d", status);
     }
   }
   /* ---------------------------------
@@ -320,7 +310,7 @@ namespace core2watch
 
       StaticJsonDocument<256> doc;
 
-      doc["parent"]["database_id"] = "8953469559d64b91a7e8abb56c5b82fc";
+      doc["parent"]["database_id"] = notionDatabaseId;
       doc["properties"]["Name"]["title"][0]["text"]["content"] = "create page by M5Stack!";
       doc["properties"]["気温"]["type"] = "number";
       doc["properties"]["気温"]["number"] = 123;
@@ -352,24 +342,20 @@ namespace core2watch
       M5.Lcd.setTextSize(1);
       float temperature = 0.0f;
       M5.IMU.getTempData(&temperature);
-      sprintf(sprintfBuf, "IMU temperature: %03.3f degree Celsius", temperature);
-      M5.Lcd.println(sprintfBuf);
+      M5.Lcd.printf("IMU temperature: %03.3f degree Celsius\n", temperature);
 
       float pitch = 0.0f;
       float roll = 0.0f;
       float yaw = 0.0f;
       M5.IMU.getAhrsData(&pitch, &roll, &yaw);
-      sprintf(sprintfBuf, "pitch: %03.3f, roll: %03.3f, yaw: %03.3f", pitch, roll, yaw);
-      M5.Lcd.println(sprintfBuf);
+      M5.Lcd.printf("pitch: %03.3f, roll: %03.3f, yaw: %03.3f\n", pitch, roll, yaw);
 
-      sprintf(sprintfBuf, "voltabe: %03.3f", M5.Axp.GetBatVoltage());
-      M5.Lcd.println(sprintfBuf);
+      M5.Lcd.printf("voltabe: %03.3f\n", M5.Axp.GetBatVoltage());
 
       // 測定
       float tmp = sht3x.readTemperature();
       float hum = sht3x.readHumidity();
-      sprintf(sprintfBuf, "env2: %03.3f, %03.3f", tmp, hum);
-      M5.Lcd.println(sprintfBuf);
+      M5.Lcd.printf("env2: %03.3f, %03.3f\n", tmp, hum);
 
       M5.Axp.SetLed(0 < pitch);
     }
