@@ -1,5 +1,6 @@
 #include <M5Core2.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
 
 namespace core2watch
 {
@@ -23,13 +24,21 @@ namespace core2watch
     Data
   };
 
-  // WiFi 内でのモード
+  // WiFi モード 内での状態
   enum class WiFiState
   {
     Init,
     Connecting,
     Connected,
     Fail
+  };
+
+  // Data モード 内での状態
+  enum class DataState
+  {
+    None,
+    Sending,
+    Send
   };
 
   // 今のモード
@@ -41,10 +50,19 @@ namespace core2watch
   // WiFi モード内の状態
   WiFiState wiFiState = WiFiState::Init;
 
+  // Data モード 内での状態
+  DataState dataState = DataState::None;
+
+  // モードの表示領域を黒で塗りつぶす
+  void resetModeArea()
+  {
+    M5.Lcd.fillRect(0, 320, 221, 19, BLACK);
+  }
+
   // 下のモード切り替えボタンを表示する
   void drawMenu()
   {
-    M5.Lcd.fillRect(0, 320, 221, 19, BLACK);
+    resetModeArea();
     M5.Lcd.drawFastHLine(0, 220, 319, WHITE);
     M5.Lcd.drawFastVLine(106, 220, 19, WHITE);
     M5.Lcd.drawFastVLine(214, 220, 19, WHITE);
@@ -218,6 +236,26 @@ namespace core2watch
       M5.Lcd.print(sprintfBuf);
     }
   }
+  /* ---------------------------------
+            モード切り替え
+--------------------------------- */
+  void checkModeChange(TouchPoint_t touchPosition)
+  {
+    if (220 < touchPosition.y)
+    {
+      if (0 < touchPosition.x && touchPosition.x < 106)
+      {
+        nowMode = Mode::WiFi;
+        return;
+      }
+      if (touchPosition.x < 214)
+      {
+        nowMode = Mode::Time;
+        return;
+      }
+      nowMode = Mode::Data;
+    }
+  }
 
   /* ================================
               Time Mode
@@ -248,26 +286,64 @@ namespace core2watch
   /* ================================
               Data Mode
 ================================= */
-  void updateInDataMode()
+  void updateInDataMode(TouchPoint_t touchPosition)
   {
-    M5.Lcd.setCursor(0, 116);
-    M5.Lcd.setTextSize(1);
-    float temperature = 0.0f;
-    M5.IMU.getTempData(&temperature);
-    sprintf(sprintfBuf, "IMU temperature: %03.3f degree Celsius", temperature);
-    M5.Lcd.println(sprintfBuf);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setCursor(200, 16);
+    M5.Lcd.drawRect(200, 16, 120, 16, GREEN);
+    M5.Lcd.println("send to Notion");
 
-    float pitch = 0.0f;
-    float roll = 0.0f;
-    float yaw = 0.0f;
-    M5.IMU.getAhrsData(&pitch, &roll, &yaw);
-    sprintf(sprintfBuf, "pitch: %03.3f, roll: %03.3f, yaw: %03.3f", pitch, roll, yaw);
-    M5.Lcd.println(sprintfBuf);
+    if (
+        200 < touchPosition.x && touchPosition.x < 320 &&
+        16 < touchPosition.y && touchPosition.y < 32)
+    {
+      dataState = DataState::Sending;
+      resetModeArea();
+      HTTPClient http;
+      http.begin("http://narumincho.com");
+      int httpCode = http.GET();
 
-    sprintf(sprintfBuf, "voltabe: %03.3f", M5.Axp.GetBatVoltage());
-    M5.Lcd.println(sprintfBuf);
+      // httpCode will be negative on error
+      if (httpCode > 0)
+      {
+        // HTTP header has been send and Server response header has been handled
+        M5.Lcd.printf("[HTTP] GET... code: %d\n", httpCode);
 
-    M5.Axp.SetLed(0 < pitch);
+        // file found at server
+        if (httpCode == HTTP_CODE_OK)
+        {
+          String payload = http.getString();
+          M5.Lcd.println(payload);
+        }
+      }
+      else
+      {
+        M5.Lcd.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      }
+      return;
+    }
+
+    if (dataState == DataState::None)
+    {
+      M5.Lcd.setCursor(0, 116);
+      M5.Lcd.setTextSize(1);
+      float temperature = 0.0f;
+      M5.IMU.getTempData(&temperature);
+      sprintf(sprintfBuf, "IMU temperature: %03.3f degree Celsius", temperature);
+      M5.Lcd.println(sprintfBuf);
+
+      float pitch = 0.0f;
+      float roll = 0.0f;
+      float yaw = 0.0f;
+      M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+      sprintf(sprintfBuf, "pitch: %03.3f, roll: %03.3f, yaw: %03.3f", pitch, roll, yaw);
+      M5.Lcd.println(sprintfBuf);
+
+      sprintf(sprintfBuf, "voltabe: %03.3f", M5.Axp.GetBatVoltage());
+      M5.Lcd.println(sprintfBuf);
+
+      M5.Axp.SetLed(0 < pitch);
+    }
   }
 
   /* ================================
@@ -285,6 +361,9 @@ namespace core2watch
 ================================= */
   void loop()
   {
+    // モード切り替え
+    TouchPoint_t touchPosition = M5.Touch.getPressPoint();
+
     if (beforeMode != nowMode)
     {
       M5.Lcd.fillScreen(BLACK);
@@ -293,6 +372,10 @@ namespace core2watch
       if (nowMode == Mode::WiFi)
       {
         wiFiState = WiFiState::Init;
+      }
+      if (nowMode == Mode::Data)
+      {
+        dataState = DataState::None;
       }
     }
     if (nowMode == Mode::WiFi)
@@ -305,27 +388,10 @@ namespace core2watch
     }
     if (nowMode == Mode::Data)
     {
-      ::core2watch::updateInDataMode();
+      ::core2watch::updateInDataMode(touchPosition);
     }
-
-    // モード切り替え
-    ::TouchPoint_t pos = M5.Touch.getPressPoint();
-    if (220 < pos.y)
-    {
-      if (0 < pos.x && pos.x < 106)
-      {
-        nowMode = Mode::WiFi;
-        return;
-      }
-      if (pos.x < 214)
-      {
-        nowMode = Mode::Time;
-        return;
-      }
-      nowMode = Mode::Data;
-    }
+    checkModeChange(touchPosition);
   }
-
 }
 
 /* ================================
