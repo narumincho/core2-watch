@@ -1,10 +1,10 @@
 #include <M5Core2.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 namespace core2watch
 {
-
   // 前の秒. 秒がいつ変化するか調べる必要があるため
   uint8_t beforeSeconds;
   // 今回の秒が始まったミリ秒
@@ -16,7 +16,15 @@ namespace core2watch
   // WiFi の パスワード
   const String wifiPassword = "testpass";
 
-    // モード
+  // Notion のデータベースID
+  const String notionDatabaseId = "8953469559d64b91a7e8abb56c5b82fc";
+
+  // Notion の integrations (ボット) のシークレットキー
+  const String notionIntegrationsSecret = "";
+
+  const int capacity = JSON_OBJECT_SIZE(256);
+
+  // モード
   enum class Mode
   {
     WiFi,
@@ -299,11 +307,23 @@ namespace core2watch
       dataState = DataState::Sending;
       resetModeArea();
       HTTPClient http;
-      http.begin("https://narumincho.com/");
-      http.addHeader("accept", "text/html");
-      http.addHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+      http.begin("https://api.notion.com/v1/pages");
+      http.addHeader("authorization", "Bearer " + notionIntegrationsSecret);
 
-      int httpCode = http.GET();
+      http.addHeader("Content-Type", "application/json");
+      http.addHeader("Notion-Version", "2021-05-13");
+
+      StaticJsonDocument<256> doc;
+
+      doc["parent"]["database_id"] = "8953469559d64b91a7e8abb56c5b82fc";
+      doc["properties"]["Name"]["title"][0]["text"]["content"] = "create page by M5Stack!";
+      doc["properties"]["気温"]["type"] = "number";
+      doc["properties"]["気温"]["number"] = 123;
+
+      String output;
+      serializeJson(doc, output);
+
+      int httpCode = http.POST(output);
       String payload = http.getString();
 
       // httpCode will be negative on error
