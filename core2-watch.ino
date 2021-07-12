@@ -335,6 +335,10 @@ namespace core2watch
       doc["properties"]["湿度"]["number"] = humidity;
       doc["properties"]["気圧"]["type"] = "number";
       doc["properties"]["気圧"]["number"] = pressure;
+      doc["children"][0]["object"] = "block";
+      doc["children"][0]["type"] = "heading_2";
+      doc["children"][0]["heading_2"]["text"][0]["type"] = "text";
+      doc["children"][0]["heading_2"]["text"][0]["text"]["content"] = 30 < env2Temperature ? "暑いね" : "暑くないね";
 
       String output;
       serializeJson(doc, output);
