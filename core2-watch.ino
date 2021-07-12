@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Adafruit_BMP280.h>
+#include <Adafruit_SHT31.h>
 
 namespace core2watch
 {
@@ -60,6 +62,9 @@ namespace core2watch
 
   // Data モード 内での状態
   DataState dataState = DataState::None;
+
+  Adafruit_SHT31 sht3x;
+  Adafruit_BMP280 bme;
 
   // モードの表示領域を黒で塗りつぶす
   void resetModeArea()
@@ -360,6 +365,12 @@ namespace core2watch
       sprintf(sprintfBuf, "voltabe: %03.3f", M5.Axp.GetBatVoltage());
       M5.Lcd.println(sprintfBuf);
 
+      // 測定
+      float tmp = sht3x.readTemperature();
+      float hum = sht3x.readHumidity();
+      sprintf(sprintfBuf, "env2: %03.3f, %03.3f", tmp, hum);
+      M5.Lcd.println(sprintfBuf);
+
       M5.Axp.SetLed(0 < pitch);
     }
   }
@@ -372,6 +383,16 @@ namespace core2watch
     M5.begin();
     M5.IMU.Init();
     WiFi.mode(WIFI_STA); //STAモード（子機）として使用
+
+    // センサーの初期化
+    while (!bme.begin(0x76))
+    {
+      Serial.println("BMP280 init fail");
+    }
+    while (!sht3x.begin(0x44))
+    {
+      Serial.println("SHT3x init fail");
+    }
   }
 
   /* ================================
