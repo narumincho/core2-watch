@@ -16,7 +16,7 @@ namespace core2watch
   // WiFi の パスワード
   const String wifiPassword = "testpass";
 
-  // モード
+    // モード
   enum class Mode
   {
     WiFi,
@@ -289,36 +289,34 @@ namespace core2watch
   void updateInDataMode(TouchPoint_t touchPosition)
   {
     M5.Lcd.setTextSize(2);
-    M5.Lcd.setCursor(200, 16);
-    M5.Lcd.drawRect(200, 16, 120, 16, GREEN);
+    M5.Lcd.setCursor(150, 16);
     M5.Lcd.println("send to Notion");
+    M5.Lcd.drawRect(150, 12, 170, 20, GREEN);
 
     if (
-        200 < touchPosition.x && touchPosition.x < 320 &&
-        16 < touchPosition.y && touchPosition.y < 32)
+        150 < touchPosition.x && touchPosition.y < 20)
     {
       dataState = DataState::Sending;
       resetModeArea();
       HTTPClient http;
-      http.begin("http://narumincho.com");
+      http.begin("https://narumincho.com/");
+      http.addHeader("accept", "text/html");
+      http.addHeader("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
       int httpCode = http.GET();
+      String payload = http.getString();
 
       // httpCode will be negative on error
       if (httpCode > 0)
       {
         // HTTP header has been send and Server response header has been handled
         M5.Lcd.printf("[HTTP] GET... code: %d\n", httpCode);
-
-        // file found at server
-        if (httpCode == HTTP_CODE_OK)
-        {
-          String payload = http.getString();
-          M5.Lcd.println(payload);
-        }
+        M5.Lcd.println(payload);
       }
       else
       {
         M5.Lcd.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        M5.Lcd.println(payload);
       }
       return;
     }
