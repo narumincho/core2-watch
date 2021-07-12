@@ -4,6 +4,7 @@
     "list": "cpp",
     "chrono": "cpp",
     "functional": "cpp",
-    "string": "cpp"
+    "string": "cpp",
+    "sstream": "cpp"
   }
 }

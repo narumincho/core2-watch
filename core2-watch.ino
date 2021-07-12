@@ -40,6 +40,17 @@ namespace core2watch
     Send
   };
 
+  // 日時
+  struct DateTime
+  {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hours;
+    uint8_t minutes;
+    uint8_t seconds;
+  };
+
   // 今のモード
   Mode nowMode = Mode::Time;
 
@@ -117,56 +128,64 @@ namespace core2watch
   /* ---------------------------------
   リアルタイムクロック に 時刻 を設定する
 --------------------------------- */
-  void setRtcDateTime(uint16_t year,
-                      uint8_t month,
-                      uint8_t day,
-                      uint8_t hours,
-                      uint8_t minutes,
-                      uint8_t seconds)
+  void setRtcDateTime(DateTime dateTime)
   {
     RTC_DateTypeDef ntpDate;
-    ntpDate.Year = year;
-    ntpDate.Month = month;
-    ntpDate.Date = day;
+    ntpDate.Year = dateTime.year;
+    ntpDate.Month = dateTime.month;
+    ntpDate.Date = dateTime.day;
     M5.Rtc.SetDate(&ntpDate);
 
     RTC_TimeTypeDef ntpTime;
-    ntpTime.Hours = hours;
-    ntpTime.Minutes = minutes;
-    ntpTime.Seconds = seconds;
+    ntpTime.Hours = dateTime.hours;
+    ntpTime.Minutes = dateTime.minutes;
+    ntpTime.Seconds = dateTime.seconds;
     M5.Rtc.SetTime(&ntpTime);
+  }
+  /* ---------------------------------
+  リアルタイムクロック から 時刻 を取得する
+--------------------------------- */
+  DateTime getRtcDateTime()
+  {
+    RTC_DateTypeDef nowDate;
+    RTC_TimeTypeDef nowTime;
+
+    M5.Rtc.GetDate(&nowDate);
+    M5.Rtc.GetTime(&nowTime);
+    return {
+        nowDate.Year,
+        nowDate.Month,
+        nowDate.Date,
+        nowTime.Hours,
+        nowTime.Minutes,
+        nowTime.Seconds,
+    };
   }
 
   /* ---------------------------------
             時刻を表示する
 --------------------------------- */
-  void drawDateTime(uint16_t year,
-                    uint8_t month,
-                    uint8_t day,
-                    uint8_t hours,
-                    uint8_t minutes,
-                    uint8_t seconds,
-                    unsigned long milliSeconds)
+  void drawDateTime(DateTime dateTime, unsigned long milliSeconds)
   {
     // year
     M5.Lcd.setCursor(20, 36);
     M5.Lcd.setTextSize(2);
-    M5.Lcd.printf("%04d-", year);
+    M5.Lcd.printf("%04d-", dateTime.year);
 
     // month, day
     M5.Lcd.setCursor(108, 30);
     M5.Lcd.setTextSize(3);
-    M5.Lcd.printf("%02d-%02d", month, day);
+    M5.Lcd.printf("%02d-%02d", dateTime.month, dateTime.day);
 
     // hours, minutes
     M5.Lcd.setCursor(20, 100);
     M5.Lcd.setTextSize(5);
-    M5.Lcd.printf("%02d:%02d", hours, minutes);
+    M5.Lcd.printf("%02d:%02d", dateTime.hours, dateTime.minutes);
 
     // seconds, milliSeconds
     M5.Lcd.setCursor(190, 116);
     M5.Lcd.setTextSize(2);
-    M5.Lcd.printf(":%02d'%03ld", seconds, milliSeconds);
+    M5.Lcd.printf(":%02d'%03ld", dateTime.seconds, milliSeconds);
   }
 
   /* ================================
@@ -212,12 +231,12 @@ namespace core2watch
           M5.Lcd.printf("raw: %04d-%02d-%02d %02d:%02d:%02d\n", ntpDateTime.tm_year, ntpDateTime.tm_mon, ntpDateTime.tm_mday, ntpDateTime.tm_hour, ntpDateTime.tm_min, ntpDateTime.tm_sec);
 
           setRtcDateTime(
-              ntpDateTime.tm_year + 1900,
-              ntpDateTime.tm_mon + 1,
-              ntpDateTime.tm_mday,
-              ntpDateTime.tm_hour,
-              ntpDateTime.tm_min,
-              ntpDateTime.tm_sec);
+              {(uint16_t)(ntpDateTime.tm_year + 1900),
+               (uint8_t)(ntpDateTime.tm_mon + 1),
+               (uint8_t)ntpDateTime.tm_mday,
+               (uint8_t)ntpDateTime.tm_hour,
+               (uint8_t)ntpDateTime.tm_min,
+               (uint8_t)ntpDateTime.tm_sec});
         }
         else
         {
@@ -254,41 +273,42 @@ namespace core2watch
   /* ================================
               Time Mode
 ================================= */
-  void updateInTimeMode()
+  void updateInTimeMode(DateTime dateTime)
   {
-    RTC_DateTypeDef nowDate;
-    RTC_TimeTypeDef nowTime;
-
-    M5.Rtc.GetDate(&nowDate);
-    M5.Rtc.GetTime(&nowTime);
-
-    if (beforeSeconds != nowTime.Seconds)
+    if (beforeSeconds != dateTime.seconds)
     {
       secondsStartMillis = millis();
-      beforeSeconds = nowTime.Seconds;
+      beforeSeconds = dateTime.seconds;
     }
 
-    drawDateTime(nowDate.Year,
-                 nowDate.Month,
-                 nowDate.Date,
-                 nowTime.Hours,
-                 nowTime.Minutes,
-                 nowTime.Seconds,
-                 millis() - secondsStartMillis);
+    drawDateTime(dateTime, millis() - secondsStartMillis);
   }
 
   /* ================================
               Data Mode
 ================================= */
-  void updateInDataMode(TouchPoint_t touchPosition)
+  void updateInDataMode(TouchPoint_t touchPosition, DateTime dateTime)
   {
     M5.Lcd.setTextSize(2);
     M5.Lcd.setCursor(150, 16);
     M5.Lcd.println("send to Notion");
     M5.Lcd.drawRect(150, 12, 170, 20, GREEN);
 
+    float imuTemperature = 0.0f;
+    M5.IMU.getTempData(&imuTemperature);
+    float pitch = 0.0f;
+    float roll = 0.0f;
+    float yaw = 0.0f;
+    M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+
+    float voltage = M5.Axp.GetBatVoltage();
+
+    float env2Temperature = sht3x.readTemperature();
+    float humidity = sht3x.readHumidity();
+    float pressure = bme.readPressure();
+
     if (
-        150 < touchPosition.x && touchPosition.y < 20)
+        (150 < touchPosition.x && touchPosition.y < 20) || (dateTime.seconds == 0))
     {
       dataState = DataState::Sending;
       resetModeArea();
@@ -299,12 +319,22 @@ namespace core2watch
       http.addHeader("Content-Type", "application/json");
       http.addHeader("Notion-Version", "2021-05-13");
 
-      StaticJsonDocument<256> doc;
+      StaticJsonDocument<512> doc;
+
+      char dateBuffer[16];
+      sprintf(dateBuffer, "%04d-%02d-%02d", dateTime.year, dateTime.month, dateTime.day);
 
       doc["parent"]["database_id"] = secret::notionDatabaseId;
-      doc["properties"]["Name"]["title"][0]["text"]["content"] = "create page by M5Stack!";
+      doc["properties"]["Name"]["title"][0]["text"]["content"] = String(dateBuffer) + " の日記";
+      // doc["properties"]["送信日時"]["type"] = "date";
+
+      // doc["properties"]["送信日時"]["start"] = String(dateBuffer);
       doc["properties"]["気温"]["type"] = "number";
-      doc["properties"]["気温"]["number"] = 123;
+      doc["properties"]["気温"]["number"] = env2Temperature;
+      doc["properties"]["湿度"]["type"] = "number";
+      doc["properties"]["湿度"]["number"] = humidity;
+      doc["properties"]["気圧"]["type"] = "number";
+      doc["properties"]["気圧"]["number"] = pressure;
 
       String output;
       serializeJson(doc, output);
@@ -331,22 +361,14 @@ namespace core2watch
     {
       M5.Lcd.setCursor(0, 116);
       M5.Lcd.setTextSize(1);
-      float temperature = 0.0f;
-      M5.IMU.getTempData(&temperature);
-      M5.Lcd.printf("IMU temperature: %03.3f degree Celsius\n", temperature);
 
-      float pitch = 0.0f;
-      float roll = 0.0f;
-      float yaw = 0.0f;
-      M5.IMU.getAhrsData(&pitch, &roll, &yaw);
+      M5.Lcd.printf("IMU temperature: %03.3f degree Celsius\n", imuTemperature);
+
       M5.Lcd.printf("pitch: %03.3f, roll: %03.3f, yaw: %03.3f\n", pitch, roll, yaw);
 
-      M5.Lcd.printf("voltabe: %03.3f\n", M5.Axp.GetBatVoltage());
+      M5.Lcd.printf("voltabe: %03.3f\n", voltage);
 
-      // 測定
-      float tmp = sht3x.readTemperature();
-      float hum = sht3x.readHumidity();
-      M5.Lcd.printf("env2: %03.3f, %03.3f\n", tmp, hum);
+      M5.Lcd.printf("env2: %03.3f, %03.3f, %03.3f\n", env2Temperature, humidity, pressure);
 
       M5.Axp.SetLed(0 < pitch);
     }
@@ -379,6 +401,7 @@ namespace core2watch
   {
     // モード切り替え
     TouchPoint_t touchPosition = M5.Touch.getPressPoint();
+    DateTime dateTime = getRtcDateTime();
 
     if (beforeMode != nowMode)
     {
@@ -400,11 +423,11 @@ namespace core2watch
     }
     if (nowMode == Mode::Time)
     {
-      ::core2watch::updateInTimeMode();
+      ::core2watch::updateInTimeMode(dateTime);
     }
     if (nowMode == Mode::Data)
     {
-      ::core2watch::updateInDataMode(touchPosition);
+      ::core2watch::updateInDataMode(touchPosition, dateTime);
     }
     checkModeChange(touchPosition);
   }
