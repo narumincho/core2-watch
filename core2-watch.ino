@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_SHT31.h>
+#include "secret.hpp"
 
 namespace core2watch
 {
@@ -11,16 +12,6 @@ namespace core2watch
   uint8_t beforeSeconds;
   // 今回の秒が始まったミリ秒
   unsigned long secondsStartMillis;
-  // WiFi の SSID
-  const String wifiSsid = "n";
-  // WiFi の パスワード
-  const String wifiPassword = "testpass";
-
-  // Notion のデータベースID
-  const String notionDatabaseId = "8953469559d64b91a7e8abb56c5b82fc";
-
-  // Notion の integrations (ボット) のシークレットキー
-  const String notionIntegrationsSecret = "";
 
   const int capacity = JSON_OBJECT_SIZE(256);
 
@@ -187,9 +178,9 @@ namespace core2watch
     if (wiFiState == WiFiState::Init)
     {
       M5.Lcd.setCursor(0, 0);
-      M5.Lcd.printf("conneting %s\n", wifiSsid.c_str());
+      M5.Lcd.printf("conneting %s\n", secret::wifiSsid.c_str());
 
-      WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
+      WiFi.begin(secret::wifiSsid.c_str(), secret::wifiPassword.c_str());
       wiFiState = WiFiState::Connecting;
       return;
     }
@@ -303,14 +294,14 @@ namespace core2watch
       resetModeArea();
       HTTPClient http;
       http.begin("https://api.notion.com/v1/pages");
-      http.addHeader("authorization", "Bearer " + notionIntegrationsSecret);
+      http.addHeader("authorization", "Bearer " + secret::notionIntegrationsSecret);
 
       http.addHeader("Content-Type", "application/json");
       http.addHeader("Notion-Version", "2021-05-13");
 
       StaticJsonDocument<256> doc;
 
-      doc["parent"]["database_id"] = notionDatabaseId;
+      doc["parent"]["database_id"] = secret::notionDatabaseId;
       doc["properties"]["Name"]["title"][0]["text"]["content"] = "create page by M5Stack!";
       doc["properties"]["気温"]["type"] = "number";
       doc["properties"]["気温"]["number"] = 123;
